@@ -1,4 +1,6 @@
-const API_URL = "http://127.0.0.1:8000/recommend";
+const BASE_URL = "https://movie-recommend-system-2-259f.onrender.com";
+const API_URL = `${BASE_URL}/recommend`;
+const SEARCH_URL = `${BASE_URL}/search`;
 
 const input = document.getElementById("movieInput");
 const searchBtn = document.getElementById("searchBtn");
@@ -138,7 +140,6 @@ async function getRecommendations() {
 }
 
 /* ---------- Autocomplete ---------- */
-const SEARCH_URL = "http://127.0.0.1:8000/search";
 const list = document.getElementById("suggestions");
 let activeIndex = -1;
 let debounceTimer;
