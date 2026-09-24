@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+tmdb_5000_credits.csv
+tmdb_5000_movies.csv
+similarity.pkl
+.movie recommend system project.ipynb.layoutRemove-Item -Recurse -Force .git
