@@ -46,12 +46,34 @@ movie_list_path = os.path.join(BASE_DIR, "movie_list_pkl")
 similarity_path = os.path.join(BASE_DIR, "similarity.pkl")
 
 new = pickle.load(open(movie_list_path, "rb"))
-similarity_path = "similarity.pkl"
+
+# Ensure 'title_lower' column exists for search optimization
+if "title_lower" not in new.columns:
+    new["title_lower"] = new["title"].str.lower()
+
 try:
     similarity = pickle.load(open(similarity_path, "rb"))
 except FileNotFoundError:
     similarity = None
     print("Warning: similarity.pkl not found. Similarity recommendations will be disabled.")
+
+
+# =========================================================
+# Root Route (Home)
+# =========================================================
+
+@app.get("/")
+def home():
+    return {
+        "status": "online",
+        "message": "Welcome to the Movie Recommendation API!",
+        "endpoints": {
+            "docs": "/docs",
+            "recommend": "/recommend (POST)",
+            "search": "/search?q=movie_name (GET)",
+            "movies": "/movies (GET)"
+        }
+    }
 
 
 # =========================================================
@@ -67,6 +89,9 @@ class Movie(BaseModel):
 # =========================================================
 
 def fetch_poster(movie_id):
+    if not TMDB_API_KEY:
+        return None
+
     url = (
         f"https://api.themoviedb.org/3/movie/{movie_id}"
         f"?api_key={TMDB_API_KEY}&language=en-US"
@@ -96,6 +121,11 @@ def recommend(movie):
 
     if matches.empty:
         return None
+
+    # If similarity model is missing, fallback gracefully
+    if similarity is None:
+        print("Similarity matrix is not loaded.")
+        return []
 
     # Find the index of selected movie
     index = matches.index[0]
