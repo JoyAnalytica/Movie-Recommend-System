@@ -23,12 +23,12 @@ app = FastAPI(title="Movie Recommendation API")
 
 
 # =========================================================
-# CORS (needed so the frontend can call this API)
+# CORS Config
 # =========================================================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # development only; use your frontend URL in production
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -38,24 +38,24 @@ app.add_middleware(
 # Load Movie Recommendation Model
 # =========================================================
 
-# বর্তমান ফাইলের ডিরেক্টরি বের করার জন্য
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# movie_list_pkl ফাইলে ডট নেই, তাই নাম এভাবে হবে
 movie_list_path = os.path.join(BASE_DIR, "movie_list_pkl")
 similarity_path = os.path.join(BASE_DIR, "similarity.pkl")
 
+# Load movie dataset
 new = pickle.load(open(movie_list_path, "rb"))
 
 # Ensure 'title_lower' column exists for search optimization
 if "title_lower" not in new.columns:
     new["title_lower"] = new["title"].str.lower()
 
+# Load similarity matrix safely
 try:
     similarity = pickle.load(open(similarity_path, "rb"))
 except FileNotFoundError:
     similarity = None
-    print("Warning: similarity.pkl not found. Similarity recommendations will be disabled.")
+    print("Warning: similarity.pkl not found. Fallback recommendations enabled.")
 
 
 # =========================================================
@@ -103,7 +103,6 @@ def fetch_poster(movie_id):
         poster_path = data.get("poster_path")
 
         if poster_path:
-            # poster_path already starts with "/"
             return f"https://image.tmdb.org/t/p/w500{poster_path}"
     except Exception as e:
         print(f"Error fetching poster: {e}")
@@ -116,35 +115,34 @@ def fetch_poster(movie_id):
 # =========================================================
 
 def recommend(movie):
-    # Check if movie exists in dataframe
+    # Case-insensitive movie matching
     matches = new[new["title"].str.lower() == movie.strip().lower()]
 
     if matches.empty:
         return None
 
-    # If similarity model is missing, fallback gracefully
-    if similarity is None:
-        print("Similarity matrix is not loaded.")
-        return []
-
-    # Find the index of selected movie
     index = matches.index[0]
+    recommended_indices = []
 
-    # Calculate similarity distances
-    distances = sorted(
-        list(enumerate(similarity[index])),
-        reverse=True,
-        key=lambda x: x[1]
-    )
+    # Option A: If similarity matrix is loaded, calculate Cosine Similarity
+    if similarity is not None:
+        distances = sorted(
+            list(enumerate(similarity[index])),
+            reverse=True,
+            key=lambda x: x[1]
+        )
+        recommended_indices = [i[0] for i in distances[1:6]]
+    
+    # Option B: Fallback if similarity.pkl is missing on Render
+    else:
+        print("Similarity matrix missing. Generating fallback recommendations.")
+        total_movies = len(new)
+        recommended_indices = [(index + i + 1) % total_movies for i in range(5)]
 
     result = []
-
-    # Get Top 5 Recommendations
-    for i in distances[1:6]:
-        movie_name = new.iloc[i[0]].title
-        movie_id = new.iloc[i[0]].movie_id
-
-        # Get movie poster from TMDB
+    for i in recommended_indices:
+        movie_name = new.iloc[i].title
+        movie_id = new.iloc[i].movie_id
         poster = fetch_poster(movie_id)
 
         result.append({
@@ -166,7 +164,7 @@ def get_recommendation(data: Movie):
     if result is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Movie '{data.movie}' not found in the database."
+            detail=f"Movie '{data.movie}' not found in database."
         )
 
     return {
@@ -176,7 +174,7 @@ def get_recommendation(data: Movie):
 
 
 # =========================================================
-# Movie Title Search (autocomplete)
+# Movie Title Search (Autocomplete)
 # =========================================================
 
 @app.get("/search")
@@ -190,7 +188,6 @@ def search_movies(q: str, limit: int = 8):
     starts_mask = new["title_lower"].str.startswith(q)
     contains_mask = new["title_lower"].str.contains(q, regex=False)
 
-    # Titles that start with the text come first, then titles that contain it
     results = new.loc[starts_mask, "title"].head(limit).tolist()
     if len(results) < limit:
         extra = new.loc[contains_mask & ~starts_mask, "title"].head(limit - len(results)).tolist()
