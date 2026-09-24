@@ -46,10 +46,12 @@ movie_list_path = os.path.join(BASE_DIR, "movie_list_pkl")
 similarity_path = os.path.join(BASE_DIR, "similarity.pkl")
 
 new = pickle.load(open(movie_list_path, "rb"))
-similarity = pickle.load(open(similarity_path, "rb"))
-
-# Lowercase titles, prepared once for fast autocomplete search
-new["title_lower"] = new["title"].str.lower()
+similarity_path = "similarity.pkl"
+try:
+    similarity = pickle.load(open(similarity_path, "rb"))
+except FileNotFoundError:
+    similarity = None
+    print("Warning: similarity.pkl not found. Similarity recommendations will be disabled.")
 
 
 # =========================================================
